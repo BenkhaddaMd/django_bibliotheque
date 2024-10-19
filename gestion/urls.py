@@ -1,5 +1,6 @@
 from django.urls import path, include, re_path
 from rest_framework.routers import DefaultRouter
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .views import (
     AuteurViewSet,
     LivreViewSet,
@@ -8,11 +9,12 @@ from .views import (
     EmpruntViewSet,
     CommentaireViewSet,
     EvaluationViewSet,
-    EditeurViewSet
+    EditeurViewSet,
+    LogoutView,
+    SignupView,
+    CustomTokenObtainPairView,
+    CustomTokenRefreshView
 )
-from rest_framework import permissions
-from drf_yasg.views import get_schema_view
-from drf_yasg import openapi
 
 # Créez un routeur pour gérer automatiquement les routes pour les ViewSets
 router = DefaultRouter()
@@ -27,20 +29,11 @@ router.register(r'commentaires', CommentaireViewSet)
 router.register(r'evaluations', EvaluationViewSet)
 router.register(r'editeurs', EditeurViewSet)
 
-# Configuration de la documentation Swagger
-schema_view = get_schema_view(
-   openapi.Info(
-      title="Bibliothèque API",
-      default_version='v1',
-      description="Documentation de l'API pour la gestion de bibliothèque",
-      terms_of_service="https://www.google.com/policies/terms/",
-      contact=openapi.Contact(email="contact@bibliotheque.local"),
-   ),
-   public=True,
-   permission_classes=(permissions.AllowAny,),
-)
-
 # Ajout des routes au urlpatterns
 urlpatterns = [
-    path('api/', include(router.urls)),  # Toutes les routes de l'API via le routeur
+    path('token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('token/refresh/', CustomTokenRefreshView.as_view(), name='token_refresh'),
+    path('logout/', LogoutView.as_view(), name='logout'),
+    path('signup/', SignupView.as_view(), name='signup'),
+    path('', include(router.urls)),
 ]

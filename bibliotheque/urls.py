@@ -8,9 +8,9 @@ schema_view = get_schema_view(
     openapi.Info(
         title="Bibliotheque APIs",
         default_version='v1',
-        description="La documentations des APIs du l'app Bibliotheque",
+        description="La documentations des APIs du l'App Bibliotheque",
         terms_of_service="https://www.google.com/policies/terms/",
-        contact=openapi.Contact(email="contact@yourapi.local"),
+        contact=openapi.Contact(email="contact@gmail.com"),
         license=openapi.License(name="BSD License"),
     ),
     public=True,
@@ -27,5 +27,5 @@ urlpatterns = [
     # OpenAPI schema
     re_path(r'^openapi\.json$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
 
-    path('/', include('gestion.urls')),
+    path('api/', include('gestion.urls')),
 ]

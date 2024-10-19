@@ -1,5 +1,23 @@
 from django.db import models
-from django.contrib.auth.models import User
+import pyotp
+from django.utils import timezone
+from django.contrib.auth.models import AbstractUser
+
+class UserAccount(AbstractUser):
+    otp_secret = models.CharField(max_length=16, blank=True, null=True)
+
+    def __str__(self):
+        return self.email
+
+    def get_otp(self):
+        if not self.otp_secret:
+            self.otp_secret = pyotp.random_base32()
+            self.save()
+        return pyotp.TOTP(self.otp_secret)
+
+    def verify_otp(self, token):
+        totp = self.get_otp()
+        return totp.verify(token)
 
 class Auteur(models.Model):
     nom = models.CharField(max_length=255)
@@ -59,7 +77,7 @@ class Exemplaire(models.Model):
 
 class Emprunt(models.Model):
     exemplaire = models.ForeignKey(Exemplaire, on_delete=models.CASCADE, related_name='emprunts')
-    utilisateur = models.ForeignKey(User, on_delete=models.CASCADE, related_name='emprunts')
+    utilisateur = models.ForeignKey(UserAccount, on_delete=models.CASCADE, related_name='emprunts')
     date_emprunt = models.DateTimeField(auto_now_add=True)
     date_retour_prévue = models.DateTimeField()
     date_retour_effective = models.DateTimeField(null=True, blank=True)
@@ -70,7 +88,7 @@ class Emprunt(models.Model):
         return f"Emprunt par {self.utilisateur.username} de {self.exemplaire.livre.titre}"
 
 class Commentaire(models.Model):
-    utilisateur = models.ForeignKey(User, on_delete=models.CASCADE, related_name='commentaires')
+    utilisateur = models.ForeignKey(UserAccount, on_delete=models.CASCADE, related_name='commentaires')
     livre = models.ForeignKey(Livre, on_delete=models.CASCADE, related_name='commentaires')
     contenu = models.TextField()
     date_publication = models.DateTimeField(auto_now_add=True)
@@ -81,7 +99,7 @@ class Commentaire(models.Model):
         return f"Commentaire sur {self.livre.titre} par {self.utilisateur.username}"
 
 class Evaluation(models.Model):
-    utilisateur = models.ForeignKey(User, on_delete=models.CASCADE, related_name='evaluations')
+    utilisateur = models.ForeignKey(UserAccount, on_delete=models.CASCADE, related_name='evaluations')
     livre = models.ForeignKey(Livre, on_delete=models.CASCADE, related_name='evaluations')
     note = models.IntegerField()
     commentaire = models.TextField(null=True, blank=True)
