@@ -6,24 +6,31 @@ import re
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 import pyotp
 from django.contrib.auth import authenticate
+import datetime
+import jwt
+from django.conf import settings
 
-        # otp_token = attrs.get('otp_token')
-        # if not user.verify_otp(otp_token):
-        #     raise serializers.ValidationError('Invalid OTP')
+def generate_tmp_token(user):
+    payload = {
+        'user_id': user.id,
+        'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=2),
+        'iat': datetime.datetime.utcnow()
+    }
+    token = jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
+    return token
 
-        # data = super().validate(attrs)
-
-class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+class TokenObtainPairSerializer(TokenObtainPairSerializer):
     username = serializers.CharField(required=True)
     password = serializers.CharField(required=True, write_only=True)
 
     def validate(self, attrs):
         user = authenticate(username=attrs['username'], password=attrs['password'])
 
-        if not user:
+        if user is not None:
+            tmp_token = generate_tmp_token(user)
+            return {"tmp_token": tmp_token}
+        else:
             raise serializers.ValidationError('Invalid credentials')
-
-        return {"message": "Credentials are valid. Please proceed to OTP verification."}
 
 class SignupSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(

@@ -1,7 +1,7 @@
 from rest_framework import viewsets
 from rest_framework.views import APIView
-from .models import Auteur, Livre, Categorie, Emprunt, Commentaire, Evaluation, Editeur, Exemplaire
-from .serializers import CustomTokenObtainPairSerializer, SignupSerializer, AuteurSerializer, LivreSerializer, CategorieSerializer, EmpruntSerializer, CommentaireSerializer, EvaluationSerializer, EditeurSerializer, ExemplaireSerializer
+from .models import Auteur, Livre, Categorie, Emprunt, Commentaire, Evaluation, Editeur, Exemplaire, UserAccount
+from .serializers import TokenObtainPairSerializer, SignupSerializer, AuteurSerializer, LivreSerializer, CategorieSerializer, EmpruntSerializer, CommentaireSerializer, EvaluationSerializer, EditeurSerializer, ExemplaireSerializer
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter
 from rest_framework.pagination import PageNumberPagination
@@ -20,14 +20,62 @@ from io import BytesIO
 import base64
 import pyotp
 import qrcode
+from rest_framework.authtoken.models import Token
+import jwt
+import pyotp
+from django.conf import settings
+from django.http import JsonResponse
+from django.middleware.csrf import get_token
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_protect
 
-class CustomTokenObtainPairView(TokenObtainPairView):
-    serializer_class = CustomTokenObtainPairSerializer
+def csrf_token_view(request):
+    csrf_token = get_token(request)
+    return JsonResponse({'csrfToken': csrf_token})
+
+@method_decorator(csrf_protect, name='dispatch')
+class LoginView(TokenObtainPairView):
+    serializer_class = TokenObtainPairSerializer
     throttle_classes = [UserRateThrottle, AnonRateThrottle]
 
-class CustomTokenRefreshView(TokenRefreshView):
+@method_decorator(csrf_protect, name='dispatch')
+class OTPVerificationView(APIView):
+
+    def verify_otp(self, user, otp_token):
+        totp = pyotp.TOTP(user.otp_secret)
+        return totp.verify(otp_token)
+
+    def get_tokens_for_user(self, user):
+        refresh = RefreshToken.for_user(user)
+        return {
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }
+
+    def post(self, request):
+        tmp_token = request.data.get('tmp_token')
+        otp_token = request.data.get('otp_token')
+
+        try:
+            payload = jwt.decode(tmp_token, settings.SECRET_KEY, algorithms=['HS256'])
+            user_id = payload.get('user_id')
+            user = UserAccount.objects.get(id=user_id)
+        except jwt.ExpiredSignatureError:
+            return Response({'error': 'Temporary token expired'}, status=status.HTTP_401_UNAUTHORIZED)
+        except jwt.InvalidTokenError:
+            return Response({'error': 'Invalid temporary token'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if self.verify_otp(user, otp_token):
+            tokens = self.get_tokens_for_user(user)
+            return Response(tokens, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': 'Invalid OTP token'}, status=status.HTTP_401_UNAUTHORIZED)
+
+@method_decorator(csrf_protect, name='dispatch')
+class RefreshView(TokenRefreshView):
     throttle_classes = [UserRateThrottle, AnonRateThrottle]
 
+@method_decorator(csrf_protect, name='dispatch')
 class SignupView(APIView):
     permission_classes = [AllowAny]
 
@@ -50,6 +98,7 @@ class SignupView(APIView):
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+@method_decorator(csrf_protect, name='dispatch')
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -68,6 +117,7 @@ class CustomPagination(PageNumberPagination):
     page_size_query_param = 'page_size'
     max_page_size = 100
 
+@method_decorator(csrf_protect, name='dispatch')
 class AuteurViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = Auteur.objects.all()
@@ -85,6 +135,7 @@ class AuteurViewSet(viewsets.ModelViewSet):
 
         return super().get_permissions()
 
+@method_decorator(csrf_protect, name='dispatch')
 class LivreViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = Livre.objects.all()
@@ -102,6 +153,7 @@ class LivreViewSet(viewsets.ModelViewSet):
 
         return super().get_permissions()
 
+@method_decorator(csrf_protect, name='dispatch')
 class CategorieViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = Categorie.objects.all()
@@ -115,6 +167,7 @@ class CategorieViewSet(viewsets.ModelViewSet):
 
         return super().get_permissions()
 
+@method_decorator(csrf_protect, name='dispatch')
 class EmpruntViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = Emprunt.objects.all()
@@ -128,6 +181,7 @@ class EmpruntViewSet(viewsets.ModelViewSet):
 
         return super().get_permissions()
 
+@method_decorator(csrf_protect, name='dispatch')
 class CommentaireViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = Commentaire.objects.all()
@@ -141,6 +195,7 @@ class CommentaireViewSet(viewsets.ModelViewSet):
 
         return super().get_permissions()
 
+@method_decorator(csrf_protect, name='dispatch')
 class EvaluationViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = Evaluation.objects.all()
@@ -154,6 +209,7 @@ class EvaluationViewSet(viewsets.ModelViewSet):
 
         return super().get_permissions()
 
+@method_decorator(csrf_protect, name='dispatch')
 class EditeurViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = Editeur.objects.all()
@@ -167,6 +223,7 @@ class EditeurViewSet(viewsets.ModelViewSet):
 
         return super().get_permissions()
 
+@method_decorator(csrf_protect, name='dispatch')
 class ExemplaireViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = Exemplaire.objects.all()
